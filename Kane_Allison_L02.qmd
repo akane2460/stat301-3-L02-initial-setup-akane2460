@@ -1,0 +1,499 @@
+---
+title: "L02 Initial Setup"
+subtitle: "Data Science 3 with R (STAT 301-3)"
+author: "Allison Kane"
+pagetitle: "L02 Allison Kane"
+date: today
+
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    embed-resources: true
+    code-fold: false
+    link-external-newwindow: true
+
+execute:
+  warning: false
+  
+from: markdown+emoji
+reference-location: margin
+citation-location: margin
+---
+
+
+::: {.callout-tip icon=false}
+
+## Github Repo Link
+
+[Allison Repo Link](https://github.com/stat301-3-2024-spring/L02-initial-setup-akane2460)
+
+:::
+
+
+## Overview
+
+The goal of this lab is to revisit data splitting. This includes advanced techniques in data spending and transformations/balancing of the outcome variable.
+
+```{r}
+#| label: loading packages
+#| echo: false
+
+# load packages ----
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(themis)
+
+# handle common conflicts
+tidymodels_prefer()
+
+```
+
+
+## Exercises
+
+### Exercise 1
+
+For this exercise, we will be using the `diabetes` dataset^[Kaggle Pima Indians Diabetes Dataset ([see website](https://www.kaggle.com/datasets/uciml/pima-indians-diabetes-database?select=diabetes.csv))] found in the `\data` directory. Take a moment to read the variable definitions in `diabetes_codebook.txt`.
+
+::: {.callout-note icon="false"}
+## Prediction goal
+
+The objective of the dataset is to diagnostically predict whether or not a patient has diabetes (`diabetes`), based on certain diagnostic measurements included in the dataset.
+
+:::
+
+#### Task 1
+
+Begin by loading the data and making sure that it is minimally prepared for fitting models. At minimum we should check that the data is being read in correctly, variables are being typed correctly. Re-type any variables, if needed. Remove any missingness in the **outcome variable only**. Inspect and describe the distribution of the response/target variable. Are there any issues? What is the ratio of the majority to minority classes?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+There is a greater number of patients without diabetes (majority) than ones with (minority). However, there is a substantial percentage of patients with diabetes (34.9%). The ratio of non-diabetic to diabetic patients is 1.87:1. There don't seem to be any major issues, aside from the variable's classification as a numeric variable. 
+
+:::
+
+
+#### Task 2
+
+Is upsampling or downsampling more appropriate and why?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+In this case, downsampling could be appropriate. There is an imbalance of diabetics vs nondiabetics, so adjusting the balance could be necessary, but the imbalance is not so extreme to require upsampling. Downsampling would also prevent overfitting to the non-diabetic population. It could potentially remove portions of the dataset's variability, so it is a trade-off. 
+
+:::
+
+
+#### Task 3
+
+Perform an initial split of the dataset into training and testing sets using the `rsample` package. How many observations are in your training and testing datasets?
+
+::: {.callout-tip icon="false"}
+## Solution
+Training set contains 704 observations and testing set contains 154. The relevant code is below:
+
+```{r}
+#| label: ex 1 task 3
+#| eval: false
+
+# set seed
+set.seed(0192384)
+
+# splitting data
+diabetic_split <- diabetes |> 
+  initial_split(prop = .8, strata = diabetes)
+
+# making train and test data
+diabetic_train <- diabetic_split |> training()
+diabetic_test <- diabetic_split |> testing()
+
+diabetic_train |> 
+  head()
+
+```
+
+
+:::
+
+
+#### Task 4
+
+Balance the training dataset using the appropriate method from the `themis` package. Verify that the new training dataset is balanced.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+| # diabetic| # nondiabetic| total| ratio|
+|----------:|-------------:|-----:|-----:|
+|        214|           214|   428|     1|
+
+The training dataset is balanced. The relevant code is below:
+
+```{r}
+#| label: ex 1 task 4
+#| eval: false
+
+# set seed
+set.seed(09271024)
+
+diabetic_recipe <- recipe(diabetes ~ .,
+  data = diabetic_train) |> 
+  step_downsample(diabetes)
+
+balanced_diabetic_train <- prep(diabetic_recipe) |> 
+  bake(new_data = NULL)
+
+balanced_table <- balanced_diabetic_train |> 
+  summarise(
+    diabetic = sum(diabetes == "1"),
+    nondiabetic = sum(diabetes == "0"),
+    total = n(),
+    ratio = diabetic/nondiabetic
+  )
+
+```
+
+:::
+
+
+Why are we only balancing the training dataset here?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+We are only balancing the training dataset specifically so that the data we are training the model on includes balanced levels of diabetic and non diabetic patients. However, this is not necessary in the testing set, as an even distribution of patients (diabetic vs nondiabetic) is not required to test the model's performance.
+
+:::
+
+
+#### Task 5
+
+Fold the training data using repeated V-fold cross-validation (5 folds & 3 repeats). Use stratified sampling when folding the data. Be sure to save your training, testing, and folds to an appropriate directory/folder.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+This has been completed
+
+```{r}
+#| label: ex 1 task 5 
+#| eval: false
+
+# folding data----
+diabetic_fold <- 
+  balanced_diabetic_train |> vfold_cv(v = 5, repeats = 3) 
+
+# information of where the data has been saved
+load(diabetic_train, file = here("exercise_1/results/diabetic_train.rda"))
+load(diabetic_test, file = here("exercise_1/results/diabetic_test.rda"))
+load(diabetic_split, file = here("exercise_1/results/diabetic_split.rda"))
+load(balanced_diabetic_train, file = here("exercise_1/results/balanced_diabetic_train.rda"))
+load(diabetic_fold, file = here("exercise_1/results/diabetic_fold.rda"))
+
+```
+
+
+:::
+
+### Exercise 2
+
+For this exercise, we will be using the `credit_fraud` dataset^[Kaggle Credit Card Fraud ([see website](https://www.kaggle.com/datasets/joebeachcapital/credit-card-fraud/data))] found in the `\data` directory. Take a moment to read the variable definitions in `credit_fraud_codebook.txt`.
+
+::: {.callout-note icon="false"}
+## Prediction goal
+
+The objective is to predict whether or not a credit card transaction was a fraud (`class`).
+
+:::
+
+
+#### Task 1
+
+Begin by loading the data and making sure that it is minimally prepared for fitting models. At minimum we should check that the data is being read in correctly, variables are being typed correctly. Re-type any variables, if needed. Remove any missingness in the **outcome variable only**. Inspect and describe the distribution of the response/target variable. Are there any issues? What is the ratio of the majority to minority classes?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+There is no missingness in the outcome variable. Though there are both fraudulent and non-fraudulent transactions, the ratio of non-fraudulent to fraudulent transactions is approximately 578:1. This is unbalanced and could be an issue, so we must adjust the dataset i teh future. 
+
+:::
+
+#### Task 2
+
+This dataset is *huge*!^[Given our computational resources and experience.] For purposes of our class, and computational resources, downsample the dataset so that the two classes are at a 10:1 ratio. How many observations are in the new dataset?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+5412 observations
+
+| fraud| nonfraud| total| ratio|
+|-----:|--------:|-----:|-----:|
+|   492|     4920|  5412|    10|
+
+5412 observations.
+
+:::
+
+#### Task 3
+
+Perform an initial split of the dataset into training and testing sets using the `rsample` package.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: ex 2 task 3
+#| eval: false
+# splitting----
+credit_split <- balanced_credit |> 
+  initial_split(prop = .8, strata = class)
+
+# making train and test data
+credit_train <- credit_split |> training()
+credit_test <- credit_split |> testing()
+```
+
+
+:::
+
+#### Task 4
+
+Fold the training data using repeated V-fold cross-validation (5 folds & 3 repeats) and stratification. Be sure to save your training, testing, and folds to an appropriate directory/folder.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: ex 2 task 4
+#| eval: false
+
+credit_fold <- 
+  credit_train |> vfold_cv(v = 5, repeats = 3) 
+
+# saved results here
+load(credit_train, file = here("exercise_2/results/credit_train.rda"))
+load(credit_test, file = here("exercise_2/results/credit_test.rda"))
+load(credit_split, file = here("exercise_2/results/credit_split.rda"))
+load(credit_fold, file = here("exercise_2/results/credit_fold.rda"))
+
+```
+
+
+:::
+
+
+#### Task 5
+
+A dataset does not have to be perfectly balanced 1:1. As a rule of thumb, a dataset is considered imbalanced if the ratio of majority to minority is over 10:1. Deciding what ratio to upsample/downsample to can be considered a type of tuning. Maybe we wanted a slightly more balanced dataset but did not want to reduce the number of observations any further. Use your downsampled and split data from Task 3 to upsample the training dataset such that the class imbalance ratio is 4:1. Now fold this new training data using repeated V-fold cross-validation (5 folds & 3 repeats) and stratification. Be sure to save your new training and folds to an appropriate directory/folder.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+| fraud| nonfraud| total| ratio|
+|-----:|--------:|-----:|-----:|
+|  1230|     4920|  6150|     4|
+
+```{r}
+#| label: task 5 ex 2
+#| eval: false
+# upsampling downsampled data----
+set.seed(012737)
+
+upsampled_credit_recipe <- recipe(class ~ .,
+                        data = balanced_credit) |> 
+  step_upsample(class, over_ratio = .25)
+
+upsampled_credit <- prep(upsampled_credit_recipe) |> 
+  bake(new_data = NULL)
+
+upsampled_credit_table <- upsampled_credit |> 
+  summarize(
+    fraud = sum(class == "1"),
+    nonfraud = sum(class == "0"),
+    total = n(),
+    ratio = nonfraud/fraud
+  )
+
+# folding data----
+upsampled_credit_fold <- 
+  upsampled_credit |> vfold_cv(v = 5, repeats = 3) 
+
+# saved here
+load(upsampled_credit_fold, file = here("exercise_2/results/upsampled_credit_fold.rda"))
+
+
+```
+
+:::
+
+
+### Exercise 3
+
+For this exercise, we will be using the `rideshare` dataset^[Kaggle Uber & Lyft Dataset ([see website](https://www.kaggle.com/datasets/brllrb/uber-and-lyft-dataset-boston-ma))] found in the `\data` directory. Take a moment to read the variable definitions in `rideshare_codebook.txt`.
+
+::: {.callout-note icon="false"}
+## Prediction goal
+
+The objective is to predict the `price` of an Uber & Lyft rideshare.
+
+:::
+
+#### Task 1
+
+Begin by loading the data and making sure that it is minimally prepared for fitting models. At minimum we should check that the data is being read in correctly, variables are being typed correctly. Re-type any variables, if needed. Remove any missingness in the **outcome variable only**. Inspect and describe the distribution of the response/target variable. 
+
+*Don't transform the response variable yet!*
+
+::: {.callout-tip icon="false"}
+## Solution
+There was some missigness in the response variable. This has been removed. The typical price is 13.5 USD. Customers spent at minimum of 2.5 USD and maximum of 97.5 USD. Price's distribution is skewed right, with most prices falling below 50 USD. 
+
+| median_price| min_price| max_price|
+|------------:|---------:|---------:|
+|         13.5|       2.5|      97.5|
+
+![Exercise 3 Price Distribution](exercise_3/results/price_distribution.png)
+
+:::
+
+
+#### Task 2
+
+This dataset is *huge*!^[Given our computational resources and experience.] For purposes of our class, and computational resources, the ideal dataset size is between 30k-50k. Downsample the dataset so that the number of observations meets this criteria.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: ex 3 task 2
+#| eval: false
+
+# upsampling downsampled data----
+
+set.seed(13970977)
+
+nrow(rideshare_clean)
+
+rideshare_downsample <- initial_split(rideshare_clean, prop = .0475, strata = price) |> training()
+
+nrow(rideshare_downsample)
+
+```
+
+There are 30301 observations in this downsampled training set.
+
+:::
+
+#### Task 3
+
+We are not sure the optimal transformation for `price` so will instead opt to use either a Yeo-johnson or box-cox transformation (you can technically use either because there are no negative values in price). This requires finding an optimal *lambda*, which means we need to split our data first to prevent data leakage. Perform an initial split of the dataset into training and testing sets using the `rsample` package. Use stratification with the default number of strata. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: ex 3 task 3
+#| eval: false
+rideshare_split <- initial_split(rideshare_downsample, prop = .8, strata = price)
+
+rideshare_train <- rideshare_split |> training()
+rideshare_test <- rideshare_split |> testing()
+```
+
+
+:::
+
+
+#### Task 4
+
+Using the training dataset, perform a Yeo-johnson transformation and report the optimized *lambda* value. We are opting for a Yeo-johnson transformation because there is a simple R function to calculate the inverse.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+This is the optimized lambda (appx .0034)
+
+|terms |lambda value|id               |
+|:-----|-----------:|:----------------|
+|price |   0.0033693|YeoJohnson_gE8M3 |
+
+```{r}
+#| label: ex 03 task 4
+#| eval: false
+
+yj_recipe <- recipe(price ~., data = rideshare_train) |>  
+step_YeoJohnson(price, skip = TRUE) 
+
+yj_fit <- yj_recipe |> 
+prep() |>  
+bake(new_data = NULL) |> 
+rename(price_yj = price)
+
+lambda <- yj_recipe |> 
+prep() |> 
+tidy(1) |> 
+  knitr::kable()
+
+
+```
+
+#### Task 6
+
+Fold the training data using repeated V-fold cross-validation (5 folds & 3 repeats) and stratification. Be sure to save your training, testing, and folds to an appropriate directory/folder.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r}
+#| label: ex 3 task 6
+#| eval: false
+
+# fold yj
+yj_fold <- 
+  yj_fit |> vfold_cv(v = 5, repeats = 3) 
+
+# saved here
+load(here("exercise_3/results/yj_fold.rda"))
+```
+
+
+:::
+
+#### Task 7
+
+A file called `pred_results.csv` is located in the `exercise_3/results` folder. This file contains a column of observed `prices` on the original scale and `.pred` prices that are a result of the `predict()` function on the transformed scale. 
+
+Use your optimized *lambda* to create a column `price_transformed` which is the observed price on the transformed scale and `pred_inverse` which is the predicted price on the original scale.
+
+Report the RMSE on both the transformed and original scale. Also provide an appropriate visualization comparing the observed values to the predicted values on both scales. 
+
+::: {.callout-caution}
+
+These are simulated results for class purposes to demonstrate how to inverse a transformation and your actual observed/predicted results would be different.
+
+:::
+
+::: {.callout-tip icon="false"}
+## Solution
+For the original, the RMSE is approximately 8.9, indicating that typically the predicted price (original scale) varies by approximately 8.9 dollars from the actual price.
+|.metric |.estimator | .estimate|
+|:-------|:----------|---------:|
+|rmse    |standard   |  8.912391|
+
+![Original Scale](exercise_3/results/original_scale_plot.png)
+
+
+For the transformed, the RMSE is approximately .5, indicating that typically the predicted price (transformed scale) varies by .5 from the actual price.
+|.metric |.estimator | .estimate|
+|:-------|:----------|---------:|
+|rmse    |standard   | 0.5011804|
+
+![Transformed Scale](exercise_3/results/transformed_scale_plot.png)
+
+:::
